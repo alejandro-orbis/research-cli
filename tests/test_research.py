@@ -1,4 +1,6 @@
-from research import cited_numbers, make_slug
+import time
+
+from research import cited_numbers, is_timeout, make_slug, search_sources
 
 
 # --- cited_numbers ---------------------------------------------------------
@@ -41,3 +43,66 @@ def test_slug_is_at_most_50_characters():
 
 def test_slug_falls_back_to_report_when_empty():
     assert make_slug("¿?!") == "report"
+
+
+# --- search_sources (with a fake Tavily client, no network) ----------------
+
+class FakeTavily:
+    """Pretends to be Tavily: returns canned results and can simulate failures."""
+
+    def __init__(self, responses, delay=0.0):
+        self.responses = responses  # query -> list of result dicts, or an Exception
+        self.delay = delay
+
+    def search(self, query, **kwargs):
+        time.sleep(self.delay)
+        response = self.responses[query]
+        if isinstance(response, Exception):
+            raise response
+        return {"results": response}
+
+
+def test_search_removes_duplicate_urls():
+    fake = FakeTavily({
+        "q1": [{"url": "https://a.com", "title": "A", "content": "aaa"}],
+        "q2": [{"url": "https://a.com", "title": "A", "content": "aaa"},
+               {"url": "https://b.com", "title": "B", "content": "bbb"}],
+    })
+    sources = search_sources(fake, ["q1", "q2"], per_query=3)
+    assert [s["url"] for s in sources] == ["https://a.com", "https://b.com"]
+
+
+def test_search_survives_a_failed_query():
+    fake = FakeTavily({
+        "ok": [{"url": "https://ok.com", "title": "OK", "content": "fine"}],
+        "broken": RuntimeError("API down"),
+    })
+    sources = search_sources(fake, ["broken", "ok"], per_query=3)
+    assert [s["url"] for s in sources] == ["https://ok.com"]
+
+
+def test_searches_run_in_parallel():
+    queries = ["q1", "q2", "q3"]
+    fake = FakeTavily({q: [] for q in queries}, delay=0.5)
+    started = time.perf_counter()
+    search_sources(fake, queries, per_query=3)
+    # Sequential would take ~1.5 s; in parallel it should take ~0.5 s.
+    assert time.perf_counter() - started < 1.0
+
+
+# --- is_timeout --------------------------------------------------------------
+
+class ReadTimeout(Exception):
+    """Mimics the timeout exception raised by HTTP libraries like httpx."""
+
+
+def test_builtin_timeout_is_detected():
+    assert is_timeout(TimeoutError())
+
+
+def test_http_library_timeout_is_detected():
+    assert is_timeout(ReadTimeout("The read operation timed out"))
+
+
+def test_other_errors_are_not_timeouts():
+    assert not is_timeout(ValueError("bad input"))

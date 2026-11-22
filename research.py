@@ -21,6 +21,7 @@ import re
 import sys
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -53,8 +54,18 @@ def require_env(name: str) -> str:
     return value
 
 
+def is_timeout(error: Exception) -> bool:
+    """True for network timeouts, whatever HTTP library raised them."""
+    return isinstance(error, TimeoutError) or "timeout" in type(error).__name__.lower()
+
+
 def ask_llm(client, prompt: str, retries: int = 3) -> str:
-    """Call the LLM, retrying 5xx errors and falling back to the next model."""
+    """Call the LLM with retries and model fallback.
+
+    - 5xx server errors: retry the same model with backoff.
+    - Timeouts: switch straight to the next model (retrying would likely be just as slow).
+    - Anything else (bad key, unknown model...): fail immediately.
+    """
     for model in MODELS:
         for attempt in range(retries):
             try:
@@ -65,6 +76,11 @@ def ask_llm(client, prompt: str, retries: int = 3) -> str:
                     wait = 5 * 2 ** attempt  # 5s, 10s
                     print(f"   ⏳ {model} is busy, retrying in {wait}s...")
                     time.sleep(wait)
+            except Exception as e:
+                if not is_timeout(e):
+                    raise
+                print(f"   ⌛ {model} took too long to respond.")
+                break
         print(f"   ↪️  {model} unavailable, switching to the next model...")
     sys.exit("All Gemini models are unavailable right now. Try again later.")
 
@@ -88,15 +104,26 @@ def plan_searches(client, question: str, n: int) -> list[str]:
     return [question]  # fallback: search the question as-is
 
 
+def search_one(tavily, query: str, per_query: int):
+    """Run a single search. Returns the result, or the exception if it failed."""
+    try:
+        return tavily.search(query, max_results=per_query, include_raw_content=True)
+    except Exception as e:  # one failed search shouldn't stop the rest
+        return e
+
+
 def search_sources(tavily, queries: list[str], per_query: int) -> list[dict]:
-    """Step 2: run every query and collect unique sources."""
+    """Step 2: run all queries in parallel and collect unique sources."""
+    with ThreadPoolExecutor(max_workers=max(1, len(queries))) as pool:
+        # map() returns results in the same order as `queries`,
+        # so source numbering stays stable regardless of which search finishes first.
+        results = list(pool.map(lambda q: search_one(tavily, q, per_query), queries))
+
     sources, seen = [], set()
-    for query in queries:
+    for query, result in zip(queries, results):
         print(f"  🔎 {query}")
-        try:
-            result = tavily.search(query, max_results=per_query, include_raw_content=True)
-        except Exception as e:  # one failed search shouldn't stop the rest
-            print(f"     ⚠️  failed: {e}")
+        if isinstance(result, Exception):
+            print(f"     ⚠️  failed: {result}")
             continue
         for item in result.get("results", []):
             url = item.get("url")
@@ -185,7 +212,7 @@ def main():
 
     client = genai.Client(
         api_key=require_env("GEMINI_API_KEY"),
-        http_options={"timeout": 60_000},  # 60 s per request (milliseconds)
+        http_options={"timeout": 120_000},  # 120 s per request (milliseconds)
     )
     tavily = TavilyClient(api_key=require_env("TAVILY_API_KEY"))
 
@@ -193,10 +220,12 @@ def main():
     queries = plan_searches(client, args.question, args.searches)
 
     print("🌐 Searching sources...")
+    started = time.perf_counter()
     sources = search_sources(tavily, queries, args.results)
+    elapsed = time.perf_counter() - started
     if not sources:
         sys.exit("No sources found. Try rephrasing the question.")
-    print(f"   {len(sources)} unique sources")
+    print(f"   {len(sources)} unique sources in {elapsed:.1f}s")
 
     print("✍️  Writing report...\n")
     report = synthesize(client, args.question, sources, args.lang)
