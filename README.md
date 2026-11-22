@@ -79,6 +79,8 @@ python research.py "What are the trade-offs of n8n vs Make for enterprises?"
 | `--searches N` | Number of web searches | `3` |
 | `--results N` | Results per search | `3` |
 | `--no-save` | Print the report without saving it | off |
+| `--exclude a.com,b.com` | Skip these domains | none |
+| `--include a.com,b.com` | Only search these domains | all |
 
 Examples:
 
@@ -99,6 +101,7 @@ Reports are saved to `reports/` (ignored by git).
 | `GEMINI_API_KEY` | yes | Google Gemini API key |
 | `TAVILY_API_KEY` | yes | Tavily search API key |
 | `GEMINI_MODEL` | no | Comma-separated list of models, tried in order |
+| `EXCLUDE_DOMAINS` | no | Domains to always skip, comma-separated (overridden by `--exclude`) |
 
 Default model order:
 
@@ -122,7 +125,7 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 - [x] Unit tests with pytest + GitHub Actions
 - [x] Parallel web searches
 - [ ] Deep mode (`--deep`): detect gaps and run a second round of searches
-- [ ] Include/exclude domains (e.g. skip video sites and forums)
+- [x] Include/exclude domains (e.g. skip video sites and forums)
 - [ ] Follow-up questions on an existing report (`--chat`)
 - [ ] Local history of past reports (SQLite)
 

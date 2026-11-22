@@ -79,6 +79,8 @@ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
 | `--searches N` | Número de búsquedas web | `3` |
 | `--results N` | Resultados por búsqueda | `3` |
 | `--no-save` | Muestra el informe sin guardarlo | desactivado |
+| `--exclude a.com,b.com` | Excluye estos dominios | ninguno |
+| `--include a.com,b.com` | Busca solo en estos dominios | todos |
 
 Los informes se guardan en `reports/` (excluida de git).
 
@@ -89,6 +91,7 @@ Los informes se guardan en `reports/` (excluida de git).
 | `GEMINI_API_KEY` | sí | Clave de la API de Google Gemini |
 | `TAVILY_API_KEY` | sí | Clave de la API de búsqueda de Tavily |
 | `GEMINI_MODEL` | no | Lista de modelos separados por comas, en orden de preferencia |
+| `EXCLUDE_DOMAINS` | no | Dominios que excluir siempre, separados por comas (`--exclude` tiene prioridad) |
 
 Orden por defecto:
 
@@ -112,7 +115,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 - [x] Tests con pytest y GitHub Actions
 - [x] Búsquedas en paralelo
 - [ ] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
-- [ ] Incluir o excluir dominios (por ejemplo, vídeos y foros)
+- [x] Incluir o excluir dominios (por ejemplo, vídeos y foros)
 - [ ] Preguntas de seguimiento sobre un informe (`--chat`)
 - [ ] Historial local de informes (SQLite)
 
