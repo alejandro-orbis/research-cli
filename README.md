@@ -4,6 +4,8 @@ A personal research assistant for the terminal. Ask a question, and it searches 
 
 [Leer en español](README.es.md)
 
+![tests](https://github.com/alejandro-orbis/research-cli/actions/workflows/tests.yml/badge.svg)
+
 ```
 $ python research.py "What are the advantages of n8n over Make?"
 🧠 Planning searches...
@@ -116,7 +118,7 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 
 ## Roadmap
 
-- [ ] Unit tests with pytest + GitHub Actions
+- [x] Unit tests with pytest + GitHub Actions
 - [ ] Parallel web searches
 - [ ] Deep mode (`--deep`): detect gaps and run a second round of searches
 - [ ] Include/exclude domains (e.g. skip video sites and forums)

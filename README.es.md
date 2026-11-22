@@ -4,6 +4,8 @@ Un asistente de investigación personal para la terminal. Le haces una pregunta,
 
 [Read in English](README.md)
 
+![tests](https://github.com/alejandro-orbis/research-cli/actions/workflows/tests.yml/badge.svg)
+
 ```
 $ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
 🧠 Planning searches...
@@ -106,7 +108,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 
 ## Hoja de ruta
 
-- [ ] Tests con pytest y GitHub Actions
+- [x] Tests con pytest y GitHub Actions
 - [ ] Búsquedas en paralelo
 - [ ] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
 - [ ] Incluir o excluir dominios (por ejemplo, vídeos y foros)
