@@ -1,10 +1,18 @@
 import time
 
+import pytest
+
+import research
 from research import (
     cited_numbers,
+    ask_llm,
+    find_gaps,
+    is_quota_error,
     is_timeout,
     make_slug,
+    merge_sources,
     parse_domains,
+    parse_json_list,
     search_sources,
 )
 
@@ -139,3 +147,113 @@ def test_no_filters_sends_nothing_extra():
     search_sources(fake, ["q"], per_query=3)
     assert "exclude_domains" not in fake.calls[0]
     assert "include_domains" not in fake.calls[0]
+
+
+# --- deep mode ---------------------------------------------------------------
+
+def test_parse_json_list_plain():
+    assert parse_json_list('["a", "b"]') == ["a", "b"]
+
+
+def test_parse_json_list_inside_code_fence():
+    assert parse_json_list('```json\n["a", "b"]\n```') == ["a", "b"]
+
+
+def test_parse_json_list_invalid_returns_empty():
+    assert parse_json_list("Sure! Here are some queries: a, b") == []
+    assert parse_json_list('{"not": "a list"}') == []
+
+
+def test_merge_sources_skips_known_urls_and_keeps_order():
+    existing = [{"url": "https://a.com"}, {"url": "https://b.com"}]
+    new = [{"url": "https://b.com"}, {"url": "https://c.com"}]
+    merged = merge_sources(existing, new)
+    assert [s["url"] for s in merged] == ["https://a.com", "https://b.com", "https://c.com"]
+
+
+class FakeResponse:
+    def __init__(self, text):
+        self.text = text
+
+
+class FakeModels:
+    def __init__(self, reply):
+        self.reply = reply
+
+    def generate_content(self, model, contents):
+        return FakeResponse(self.reply)
+
+
+class FakeGemini:
+    """Pretends to be the Gemini client: always answers with the same text."""
+
+    def __init__(self, reply):
+        self.models = FakeModels(reply)
+
+
+def test_find_gaps_returns_at_most_n_queries():
+    client = FakeGemini('["gap 1", "gap 2", "gap 3", "gap 4"]')
+    assert find_gaps(client, "question", "draft", n=2) == ["gap 1", "gap 2"]
+
+
+def test_find_gaps_with_nothing_missing():
+    client = FakeGemini("[]")
+    assert find_gaps(client, "question", "draft", n=3) == []
+
+
+# --- quota errors and model fallback -----------------------------------------
+
+class QuotaError(Exception):
+    """Mimics the API error raised when a model's daily quota is exhausted."""
+    code = 429
+
+
+def test_quota_error_is_detected():
+    assert is_quota_error(QuotaError())
+    assert not is_quota_error(ValueError())
+
+
+class ModelAwareModels:
+    """Fake Gemini models: some models fail with an error, others answer."""
+
+    def __init__(self, behaviour):
+        self.behaviour = behaviour  # model name -> reply text, or an Exception
+        self.tried = []
+
+    def generate_content(self, model, contents):
+        self.tried.append(model)
+        outcome = self.behaviour[model]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return FakeResponse(outcome)
+
+
+@pytest.fixture(autouse=True)
+def reset_llm_memory(monkeypatch):
+    """Start every test with a clean ask_llm() memory, so tests don't affect each other."""
+    monkeypatch.setattr(research, "_exhausted", set())
+    monkeypatch.setattr(research, "_preferred", None)
+
+
+def test_ask_llm_falls_back_when_a_model_is_out_of_quota(monkeypatch):
+    monkeypatch.setattr(research, "MODELS", ["model-a", "model-b"])
+    client = FakeGemini("")
+    client.models = ModelAwareModels({"model-a": QuotaError(), "model-b": "hello"})
+    assert ask_llm(client, "prompt") == "hello"
+    assert client.models.tried == ["model-a", "model-b"]  # no pointless retries of model-a
+
+
+def test_exhausted_model_is_not_retried_in_later_calls(monkeypatch):
+    monkeypatch.setattr(research, "MODELS", ["model-a", "model-b"])
+    client = FakeGemini("")
+    client.models = ModelAwareModels({"model-a": QuotaError(), "model-b": "ok"})
+    ask_llm(client, "first call")
+    ask_llm(client, "second call")
+    # model-a is tried once; the second call goes straight to model-b
+    assert client.models.tried == ["model-a", "model-b", "model-b"]
+
+
+def test_last_successful_model_is_tried_first(monkeypatch):
+    monkeypatch.setattr(research, "MODELS", ["model-a", "model-b", "model-c"])
+    monkeypatch.setattr(research, "_preferred", "model-c")
+    assert research.model_order() == ["model-c", "model-a", "model-b"]

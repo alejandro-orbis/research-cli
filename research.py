@@ -59,17 +59,41 @@ def is_timeout(error: Exception) -> bool:
     return isinstance(error, TimeoutError) or "timeout" in type(error).__name__.lower()
 
 
+# What ask_llm() learns during a run, so later calls don't repeat failed attempts.
+_exhausted: set[str] = set()   # models that ran out of quota in this run
+_preferred: str | None = None  # last model that answered successfully
+
+
+def model_order() -> list[str]:
+    """Models to try, in order: last successful one first, exhausted ones skipped."""
+    order = [m for m in MODELS if m not in _exhausted]
+    if _preferred in order:
+        order.remove(_preferred)
+        order.insert(0, _preferred)
+    return order
+
+
+def is_quota_error(error: Exception) -> bool:
+    """True when the API says we ran out of quota (HTTP 429) for this model."""
+    return getattr(error, "code", None) == 429
+
+
 def ask_llm(client, prompt: str, retries: int = 3) -> str:
     """Call the LLM with retries and model fallback.
 
     - 5xx server errors: retry the same model with backoff.
     - Timeouts: switch straight to the next model (retrying would likely be just as slow).
+    - Quota exhausted (429): switch to the next model (quotas are per model).
     - Anything else (bad key, unknown model...): fail immediately.
+
+    Within a run it remembers which model worked last and which ran out of quota.
     """
-    for model in MODELS:
+    global _preferred
+    for model in model_order():
         for attempt in range(retries):
             try:
                 response = client.models.generate_content(model=model, contents=prompt)
+                _preferred = model
                 return (response.text or "").strip()
             except errors.ServerError:
                 if attempt < retries - 1:
@@ -77,12 +101,28 @@ def ask_llm(client, prompt: str, retries: int = 3) -> str:
                     print(f"   ⏳ {model} is busy, retrying in {wait}s...")
                     time.sleep(wait)
             except Exception as e:
-                if not is_timeout(e):
-                    raise
-                print(f"   ⌛ {model} took too long to respond.")
-                break
+                if is_quota_error(e):
+                    print(f"   🚫 {model} is out of quota for today.")
+                    _exhausted.add(model)
+                    break
+                if is_timeout(e):
+                    print(f"   ⌛ {model} took too long to respond.")
+                    break
+                raise
         print(f"   ↪️  {model} unavailable, switching to the next model...")
     sys.exit("All Gemini models are unavailable right now. Try again later.")
+
+
+def parse_json_list(text: str) -> list[str]:
+    """Extract a JSON array of strings from an LLM reply. Returns [] if it isn't one."""
+    text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [str(item).strip() for item in data if str(item).strip()]
 
 
 def plan_searches(client, question: str, n: int) -> list[str]:
@@ -93,15 +133,28 @@ def plan_searches(client, question: str, n: int) -> list[str]:
         f"Return ONLY a JSON array of strings, with no extra text.\n\n"
         f"Question: {question}"
     )
-    text = ask_llm(client, prompt)
-    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-    try:
-        queries = json.loads(text)
-        if isinstance(queries, list) and queries:
-            return [str(q) for q in queries][:n]
-    except json.JSONDecodeError:
-        pass
-    return [question]  # fallback: search the question as-is
+    queries = parse_json_list(ask_llm(client, prompt))
+    return queries[:n] or [question]  # fallback: search the question as-is
+
+
+def find_gaps(client, question: str, draft: str, n: int) -> list[str]:
+    """Deep mode: ask the LLM what the draft is missing, as new search queries."""
+    prompt = (
+        "You are reviewing a research report draft. Identify the most important "
+        "aspects of the question that the draft does NOT answer well: missing "
+        "information, claims backed by a single source, or points where sources "
+        "disagree and more evidence is needed.\n"
+        f"Return up to {n} short web search queries that would fill those gaps, as "
+        "ONLY a JSON array of strings. If nothing important is missing, return [].\n\n"
+        f"Question: {question}\n\nDraft:\n{draft}"
+    )
+    return parse_json_list(ask_llm(client, prompt))[:n]
+
+
+def merge_sources(existing: list[dict], new: list[dict]) -> list[dict]:
+    """Append new sources whose URL isn't already present, keeping existing numbering."""
+    seen = {s["url"] for s in existing}
+    return existing + [s for s in new if s["url"] not in seen]
 
 
 def parse_domains(value: str | None) -> list[str]:
@@ -231,6 +284,8 @@ def main():
     parser.add_argument("--no-save", action="store_true", help="print only, don't save a .md file")
     parser.add_argument("--exclude", help="domains to skip, comma-separated (e.g. youtube.com,reddit.com)")
     parser.add_argument("--include", help="only search these domains, comma-separated")
+    parser.add_argument("--deep", action="store_true",
+                        help="review the draft, search for missing information and rewrite")
     args = parser.parse_args()
 
     client = genai.Client(
@@ -255,6 +310,22 @@ def main():
     if not sources:
         sys.exit("No sources found. Try rephrasing the question.")
     print(f"   {len(sources)} unique sources in {elapsed:.1f}s")
+
+    if args.deep:
+        print("✍️  Writing draft...")
+        draft = synthesize(client, args.question, sources, args.lang)
+
+        print("🔍 Looking for gaps...")
+        gaps = find_gaps(client, args.question, draft, args.searches)
+        if gaps:
+            new_sources = search_sources(
+                tavily, gaps, args.results, include=include, exclude=exclude
+            )
+            before = len(sources)
+            sources = merge_sources(sources, new_sources)
+            print(f"   {len(sources) - before} new sources")
+        else:
+            print("   no important gaps found")
 
     print("✍️  Writing report...\n")
     report = synthesize(client, args.question, sources, args.lang)
