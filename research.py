@@ -104,20 +104,41 @@ def plan_searches(client, question: str, n: int) -> list[str]:
     return [question]  # fallback: search the question as-is
 
 
-def search_one(tavily, query: str, per_query: int):
+def parse_domains(value: str | None) -> list[str]:
+    """Turn 'youtube.com, Reddit.com' into ['youtube.com', 'reddit.com']."""
+    if not value:
+        return []
+    return [d.strip().lower() for d in value.split(",") if d.strip()]
+
+
+def search_one(tavily, query: str, per_query: int, filters: dict):
     """Run a single search. Returns the result, or the exception if it failed."""
     try:
-        return tavily.search(query, max_results=per_query, include_raw_content=True)
+        return tavily.search(
+            query, max_results=per_query, include_raw_content=True, **filters
+        )
     except Exception as e:  # one failed search shouldn't stop the rest
         return e
 
 
-def search_sources(tavily, queries: list[str], per_query: int) -> list[dict]:
+def search_sources(
+    tavily,
+    queries: list[str],
+    per_query: int,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list[dict]:
     """Step 2: run all queries in parallel and collect unique sources."""
+    filters = {}
+    if include:
+        filters["include_domains"] = include
+    if exclude:
+        filters["exclude_domains"] = exclude
+
     with ThreadPoolExecutor(max_workers=max(1, len(queries))) as pool:
         # map() returns results in the same order as `queries`,
         # so source numbering stays stable regardless of which search finishes first.
-        results = list(pool.map(lambda q: search_one(tavily, q, per_query), queries))
+        results = list(pool.map(lambda q: search_one(tavily, q, per_query, filters), queries))
 
     sources, seen = [], set()
     for query, result in zip(queries, results):
@@ -208,6 +229,8 @@ def main():
     parser.add_argument("--searches", type=int, default=3, help="number of web searches (default: 3)")
     parser.add_argument("--results", type=int, default=3, help="results per search (default: 3)")
     parser.add_argument("--no-save", action="store_true", help="print only, don't save a .md file")
+    parser.add_argument("--exclude", help="domains to skip, comma-separated (e.g. youtube.com,reddit.com)")
+    parser.add_argument("--include", help="only search these domains, comma-separated")
     args = parser.parse_args()
 
     client = genai.Client(
@@ -221,7 +244,13 @@ def main():
 
     print("🌐 Searching sources...")
     started = time.perf_counter()
-    sources = search_sources(tavily, queries, args.results)
+    exclude = parse_domains(args.exclude or os.getenv("EXCLUDE_DOMAINS"))
+    include = parse_domains(args.include)
+    if exclude:
+        print(f"   excluding: {', '.join(exclude)}")
+    if include:
+        print(f"   only: {', '.join(include)}")
+    sources = search_sources(tavily, queries, args.results, include=include, exclude=exclude)
     elapsed = time.perf_counter() - started
     if not sources:
         sys.exit("No sources found. Try rephrasing the question.")

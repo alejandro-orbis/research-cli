@@ -1,6 +1,12 @@
 import time
 
-from research import cited_numbers, is_timeout, make_slug, search_sources
+from research import (
+    cited_numbers,
+    is_timeout,
+    make_slug,
+    parse_domains,
+    search_sources,
+)
 
 
 # --- cited_numbers ---------------------------------------------------------
@@ -53,8 +59,10 @@ class FakeTavily:
     def __init__(self, responses, delay=0.0):
         self.responses = responses  # query -> list of result dicts, or an Exception
         self.delay = delay
+        self.calls = []  # records the arguments of every search, to inspect in tests
 
     def search(self, query, **kwargs):
+        self.calls.append(kwargs)
         time.sleep(self.delay)
         response = self.responses[query]
         if isinstance(response, Exception):
@@ -106,3 +114,28 @@ def test_http_library_timeout_is_detected():
 
 def test_other_errors_are_not_timeouts():
     assert not is_timeout(ValueError("bad input"))
+
+
+# --- domain filters ----------------------------------------------------------
+
+def test_parse_domains_cleans_input():
+    assert parse_domains(" YouTube.com, reddit.com ,, ") == ["youtube.com", "reddit.com"]
+
+
+def test_parse_domains_empty():
+    assert parse_domains(None) == []
+    assert parse_domains("") == []
+
+
+def test_exclude_is_sent_to_tavily():
+    fake = FakeTavily({"q": []})
+    search_sources(fake, ["q"], per_query=3, exclude=["youtube.com"])
+    assert fake.calls[0]["exclude_domains"] == ["youtube.com"]
+    assert "include_domains" not in fake.calls[0]
+
+
+def test_no_filters_sends_nothing_extra():
+    fake = FakeTavily({"q": []})
+    search_sources(fake, ["q"], per_query=3)
+    assert "exclude_domains" not in fake.calls[0]
+    assert "include_domains" not in fake.calls[0]
