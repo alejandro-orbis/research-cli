@@ -45,6 +45,7 @@ Separar la búsqueda de la redacción y basar la respuesta en fuentes recuperada
   - Si un modelo sigue sin responder, pasa al siguiente de tu lista.
   - Cada petición tiene un límite de 60 segundos, así que nunca se queda colgado sin avisar.
   - Los errores del cliente (clave incorrecta, modelo inexistente) fallan a la primera con un mensaje claro.
+  - Si una petición tarda demasiado, pasa directamente al siguiente modelo.
 - **Informes bilingües**: en inglés o español con `--lang`.
 
 ## Requisitos
@@ -109,7 +110,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 ## Hoja de ruta
 
 - [x] Tests con pytest y GitHub Actions
-- [ ] Búsquedas en paralelo
+- [x] Búsquedas en paralelo
 - [ ] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
 - [ ] Incluir o excluir dominios (por ejemplo, vídeos y foros)
 - [ ] Preguntas de seguimiento sobre un informe (`--chat`)

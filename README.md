@@ -45,6 +45,7 @@ Keeping search and writing as separate steps, and grounding the answer in retrie
   - If a model stays unavailable, it falls back to the next one in your list.
   - Every request has a 60-second timeout, so the CLI never hangs silently.
   - Client errors (bad key, unknown model) fail fast with a clear message.
+  - Requests that time out switch straight to the next model.
 - **Bilingual reports** – English or Spanish with `--lang`.
 
 ## Requirements
@@ -119,7 +120,7 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 ## Roadmap
 
 - [x] Unit tests with pytest + GitHub Actions
-- [ ] Parallel web searches
+- [x] Parallel web searches
 - [ ] Deep mode (`--deep`): detect gaps and run a second round of searches
 - [ ] Include/exclude domains (e.g. skip video sites and forums)
 - [ ] Follow-up questions on an existing report (`--chat`)
