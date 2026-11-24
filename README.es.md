@@ -1,4 +1,4 @@
-# research-cli
+# Research CLI
 
 Un asistente de investigación personal para la terminal. Le haces una pregunta, busca en la web, lee las fuentes y redacta un informe en Markdown con cada afirmación citada.
 
