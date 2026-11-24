@@ -338,6 +338,54 @@ def get_report(conn, report_id: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM reports WHERE id = ?", (report_id,)).fetchone()
 
 
+def latest_report_id(conn) -> int | None:
+    return conn.execute("SELECT MAX(id) AS id FROM reports").fetchone()["id"]
+
+
+# --- follow-up chat ----------------------------------------------------------
+
+MAX_CHAT_TURNS = 6  # how many previous Q&A pairs the model sees
+EXIT_WORDS = {"exit", "quit", "salir"}
+
+
+def build_chat_prompt(report: str, history: list[tuple[str, str]], question: str) -> str:
+    """Prompt for a follow-up question, grounded only in the report."""
+    turns = "\n".join(
+        f"User: {q}\nAssistant: {a}" for q, a in history[-MAX_CHAT_TURNS:]
+    )
+    return (
+        "You are answering follow-up questions about the research report below.\n"
+        "- Answer ONLY with information from the report, keeping its [n] citations.\n"
+        "- If the report doesn't cover the question, say so clearly and suggest "
+        "running a new research on that topic.\n"
+        "- Be concise. Answer in the same language as the user's question.\n\n"
+        f"Report:\n{report}\n\n"
+        + (f"Conversation so far:\n{turns}\n\n" if turns else "")
+        + f"User: {question}\nAssistant:"
+    )
+
+
+def chat(client, row, ask=input) -> list[tuple[str, str]]:
+    """Interactive Q&A about a stored report. `ask` is injectable for testing."""
+    print(f"💬 Chatting about #{row['id']}: {row['question']}")
+    print("   Ask a follow-up question, or type 'exit' to quit.\n")
+    history: list[tuple[str, str]] = []
+    while True:
+        try:
+            question = ask("> ").strip()
+        except (EOFError, KeyboardInterrupt):  # Ctrl+D / Ctrl+C end the chat cleanly
+            print()
+            break
+        if not question:
+            continue
+        if question.lower() in EXIT_WORDS:
+            break
+        answer = ask_llm(client, build_chat_prompt(row["report"], history, question))
+        print(f"\n{answer}\n")
+        history.append((question, answer))
+    return history
+
+
 def print_history(rows: list[sqlite3.Row]) -> None:
     if not rows:
         print("No reports found.")
@@ -362,6 +410,8 @@ def main():
     history.add_argument("--history", action="store_true", help="list past reports")
     history.add_argument("--search", metavar="TERM", help="search past questions and reports")
     history.add_argument("--show", type=int, metavar="ID", help="print a past report")
+    history.add_argument("--chat", type=int, nargs="?", const=0, metavar="ID",
+                         help="ask follow-up questions about a report (default: the latest)")
     args = parser.parse_args()
 
     # History commands work offline and don't need API keys.
@@ -374,6 +424,19 @@ def main():
             print(row["report"])
         else:
             print_history(list_history(conn, term=args.search))
+        return
+
+    if args.chat is not None:
+        conn = open_db()
+        report_id = args.chat or latest_report_id(conn)
+        row = get_report(conn, report_id) if report_id else None
+        if row is None:
+            sys.exit("No report to chat about. Run a research first, or check --history.")
+        client = genai.Client(
+            api_key=require_env("GEMINI_API_KEY"),
+            http_options={"timeout": 120_000},
+        )
+        chat(client, row)
         return
 
     if not args.question:

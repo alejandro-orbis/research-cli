@@ -6,8 +6,11 @@ import research
 from research import (
     cited_numbers,
     ask_llm,
+    build_chat_prompt,
+    chat,
     find_gaps,
     get_report,
+    latest_report_id,
     list_history,
     open_db,
     save_to_history,
@@ -307,3 +310,42 @@ def test_history_search_matches_question_and_report(db):
 
 def test_missing_report_returns_none(db):
     assert get_report(db, 999) is None
+
+
+# --- follow-up chat ----------------------------------------------------------
+
+def test_latest_report_id(db):
+    assert latest_report_id(db) is None
+    save_to_history(db, "first", "en", False, "r", [])
+    second = save_to_history(db, "second", "en", False, "r", [])
+    assert latest_report_id(db) == second
+
+
+def test_chat_prompt_contains_report_and_question():
+    prompt = build_chat_prompt("# Report about n8n", [], "Is it free?")
+    assert "# Report about n8n" in prompt
+    assert "User: Is it free?" in prompt
+    assert "Conversation so far" not in prompt  # no history yet
+
+
+def test_chat_prompt_keeps_only_recent_turns():
+    history = [(f"q{i}", f"a{i}") for i in range(10)]
+    prompt = build_chat_prompt("report", history, "new question")
+    assert "q9" in prompt and "q4" in prompt
+    assert "q3" not in prompt  # older than the last 6 turns
+
+
+def test_chat_loop_answers_until_exit(monkeypatch):
+    monkeypatch.setattr(research, "MODELS", ["model-a"])
+    answers = iter(["What does it cost?", "", "exit"])  # empty input is ignored
+    client = FakeGemini("It's free when self-hosted [2].")
+    row = {"id": 1, "question": "n8n vs Make", "report": "# Report"}
+    history = chat(client, row, ask=lambda _prompt: next(answers))
+    assert history == [("What does it cost?", "It's free when self-hosted [2].")]
+
+
+def test_chat_ends_cleanly_on_ctrl_c():
+    def press_ctrl_c(_prompt):
+        raise KeyboardInterrupt
+    row = {"id": 1, "question": "q", "report": "r"}
+    assert chat(FakeGemini("unused"), row, ask=press_ctrl_c) == []
