@@ -136,6 +136,35 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 | `503 UNAVAILABLE` | Model overloaded | Handled automatically; if all models fail, try again later |
 | `InvalidAPIKeyError` | Wrong Tavily key | Keys start with `tvly-`; no quotes or spaces |
 
+## Project structure
+
+```
+research-cli/
+├── research.py          # entry point: python research.py "question"
+├── research_cli/
+│   ├── cli.py           # command-line arguments and main flow
+│   ├── config.py        # settings from .env (models, languages, paths)
+│   ├── llm.py           # Gemini calls: retries, model fallback, quota handling
+│   ├── planner.py       # what to search: initial plan and gap detection (--deep)
+│   ├── search.py        # parallel web search with Tavily and domain filters
+│   ├── writer.py        # report synthesis, citations and saving
+│   ├── history.py       # SQLite history
+│   └── chat.py          # follow-up questions (--chat)
+├── tests/               # unit tests (no network: APIs are replaced by fakes)
+└── examples/            # sample reports
+```
+
+Each module has a single responsibility: switching search provider only touches `search.py`, adding another LLM provider only touches `llm.py`.
+
+## Development
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -v
+```
+
+Tests run on every push via GitHub Actions (Python 3.10 and 3.12). They don't call any external API, so no keys are needed.
+
 ## Roadmap
 
 - [x] Unit tests with pytest + GitHub Actions

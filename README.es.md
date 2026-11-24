@@ -126,6 +126,35 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 | `503 UNAVAILABLE` | Modelo saturado | Se gestiona solo; si fallan todos, prueba más tarde |
 | `InvalidAPIKeyError` | Clave de Tavily incorrecta | Empieza por `tvly-`; sin comillas ni espacios |
 
+## Estructura del proyecto
+
+```
+research-cli/
+├── research.py          # punto de entrada: python research.py "pregunta"
+├── research_cli/
+│   ├── cli.py           # argumentos de la línea de comandos y flujo principal
+│   ├── config.py        # configuración del .env (modelos, idiomas, rutas)
+│   ├── llm.py           # llamadas a Gemini: reintentos, respaldo entre modelos, cuota
+│   ├── planner.py       # qué buscar: plan inicial y detección de lagunas (--deep)
+│   ├── search.py        # búsqueda en paralelo con Tavily y filtros de dominio
+│   ├── writer.py        # redacción del informe, citas y guardado
+│   ├── history.py       # historial en SQLite
+│   └── chat.py          # preguntas de seguimiento (--chat)
+├── tests/               # tests unitarios (sin red: las APIs se sustituyen por dobles de prueba)
+└── examples/            # informes de ejemplo
+```
+
+Cada módulo tiene una sola responsabilidad: cambiar de buscador solo afecta a `search.py`, y añadir otro proveedor de IA solo a `llm.py`.
+
+## Desarrollo
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -v
+```
+
+Los tests se ejecutan en cada push con GitHub Actions (Python 3.10 y 3.12). No llaman a ninguna API externa, así que no necesitan claves.
+
 ## Hoja de ruta
 
 - [x] Tests con pytest y GitHub Actions
