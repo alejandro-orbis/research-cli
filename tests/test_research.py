@@ -7,6 +7,10 @@ from research import (
     cited_numbers,
     ask_llm,
     find_gaps,
+    get_report,
+    list_history,
+    open_db,
+    save_to_history,
     is_quota_error,
     is_timeout,
     make_slug,
@@ -257,3 +261,49 @@ def test_last_successful_model_is_tried_first(monkeypatch):
     monkeypatch.setattr(research, "MODELS", ["model-a", "model-b", "model-c"])
     monkeypatch.setattr(research, "_preferred", "model-c")
     assert research.model_order() == ["model-c", "model-a", "model-b"]
+
+
+# --- history (SQLite, in memory) ---------------------------------------------
+
+@pytest.fixture
+def db():
+    """A throwaway in-memory database for each test."""
+    conn = open_db(":memory:")
+    yield conn
+    conn.close()
+
+
+def test_saved_report_can_be_read_back(db):
+    sources = [{"title": "A", "url": "https://a.com"}]
+    report_id = save_to_history(db, "What is n8n?", "en", False, "# Report", sources)
+    row = get_report(db, report_id)
+    assert row["question"] == "What is n8n?"
+    assert row["report"] == "# Report"
+    assert row["deep"] == 0
+
+
+def test_sources_are_stored_with_their_numbers(db):
+    sources = [{"title": "A", "url": "https://a.com"}, {"title": "B", "url": "https://b.com"}]
+    report_id = save_to_history(db, "q", "en", True, "r", sources)
+    rows = db.execute(
+        "SELECT num, url FROM sources WHERE report_id = ? ORDER BY num", (report_id,)
+    ).fetchall()
+    assert [(r["num"], r["url"]) for r in rows] == [(1, "https://a.com"), (2, "https://b.com")]
+
+
+def test_history_lists_newest_first(db):
+    save_to_history(db, "first", "en", False, "r", [])
+    save_to_history(db, "second", "en", False, "r", [])
+    assert [r["question"] for r in list_history(db)] == ["second", "first"]
+
+
+def test_history_search_matches_question_and_report(db):
+    save_to_history(db, "n8n vs Make", "en", False, "about automation", [])
+    save_to_history(db, "Best laptops", "en", False, "mentions n8n once", [])
+    save_to_history(db, "Python tips", "en", False, "nothing related", [])
+    found = [r["question"] for r in list_history(db, term="n8n")]
+    assert found == ["Best laptops", "n8n vs Make"]
+
+
+def test_missing_report_returns_none(db):
+    assert get_report(db, 999) is None

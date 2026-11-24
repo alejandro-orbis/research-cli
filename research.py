@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import re
+import sqlite3
 import sys
 import time
 import unicodedata
@@ -276,9 +277,79 @@ def save_report(question: str, report: str) -> Path:
     return path
 
 
+# --- history (SQLite) --------------------------------------------------------
+
+DB_PATH = os.getenv("RESEARCH_DB", "research_history.db")
+
+
+def open_db(path: str = DB_PATH) -> sqlite3.Connection:
+    """Open (and create if needed) the history database."""
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row  # rows behave like dicts: row["question"]
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS reports (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT    NOT NULL,
+            question   TEXT    NOT NULL,
+            lang       TEXT    NOT NULL,
+            deep       INTEGER NOT NULL DEFAULT 0,
+            report     TEXT    NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sources (
+            report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+            num       INTEGER NOT NULL,
+            title     TEXT,
+            url       TEXT    NOT NULL
+        );
+    """)
+    return conn
+
+
+def save_to_history(conn, question: str, lang: str, deep: bool,
+                    report: str, sources: list[dict]) -> int:
+    """Store a report and its sources. Returns the new report id."""
+    with conn:  # commits on success, rolls back on error
+        cur = conn.execute(
+            "INSERT INTO reports (created_at, question, lang, deep, report) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(timespec="seconds"), question, lang, int(deep), report),
+        )
+        report_id = cur.lastrowid
+        conn.executemany(
+            "INSERT INTO sources (report_id, num, title, url) VALUES (?, ?, ?, ?)",
+            [(report_id, i, s["title"], s["url"]) for i, s in enumerate(sources, 1)],
+        )
+    return report_id
+
+
+def list_history(conn, limit: int = 20, term: str | None = None) -> list[sqlite3.Row]:
+    """Most recent reports first, optionally filtered by a search term."""
+    sql = "SELECT id, created_at, question, lang, deep FROM reports"
+    params: list = []
+    if term:
+        sql += " WHERE question LIKE ? OR report LIKE ?"
+        params += [f"%{term}%", f"%{term}%"]
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+    return conn.execute(sql, params).fetchall()
+
+
+def get_report(conn, report_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM reports WHERE id = ?", (report_id,)).fetchone()
+
+
+def print_history(rows: list[sqlite3.Row]) -> None:
+    if not rows:
+        print("No reports found.")
+        return
+    for r in rows:
+        tags = r["lang"] + (", deep" if r["deep"] else "")
+        print(f"#{r['id']:<4} {r['created_at'][:16].replace('T', ' ')}  [{tags}]  {r['question']}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Personal research assistant for the terminal")
-    parser.add_argument("question", help="what you want to research (in quotes)")
+    parser.add_argument("question", nargs="?", help="what you want to research (in quotes)")
     parser.add_argument("--lang", choices=LANGUAGES, default="en", help="report language (default: en)")
     parser.add_argument("--searches", type=int, default=3, help="number of web searches (default: 3)")
     parser.add_argument("--results", type=int, default=3, help="results per search (default: 3)")
@@ -287,7 +358,26 @@ def main():
     parser.add_argument("--include", help="only search these domains, comma-separated")
     parser.add_argument("--deep", action="store_true",
                         help="review the draft, search for missing information and rewrite")
+    history = parser.add_argument_group("history (no API calls)")
+    history.add_argument("--history", action="store_true", help="list past reports")
+    history.add_argument("--search", metavar="TERM", help="search past questions and reports")
+    history.add_argument("--show", type=int, metavar="ID", help="print a past report")
     args = parser.parse_args()
+
+    # History commands work offline and don't need API keys.
+    if args.history or args.search or args.show:
+        conn = open_db()
+        if args.show:
+            row = get_report(conn, args.show)
+            if row is None:
+                sys.exit(f"No report with id {args.show}.")
+            print(row["report"])
+        else:
+            print_history(list_history(conn, term=args.search))
+        return
+
+    if not args.question:
+        parser.error("a question is required (or use --history / --search / --show)")
 
     client = genai.Client(
         api_key=require_env("GEMINI_API_KEY"),
@@ -334,6 +424,10 @@ def main():
 
     if not args.no_save:
         print(f"💾 Saved to {save_report(args.question, report)}")
+        report_id = save_to_history(
+            open_db(), args.question, args.lang, args.deep, report, sources
+        )
+        print(f"🗂️  Saved to history as #{report_id}")
 
 
 if __name__ == "__main__":
