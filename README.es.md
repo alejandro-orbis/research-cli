@@ -40,15 +40,16 @@ Separar la búsqueda de la redacción y basar la respuesta en fuentes recuperada
 ## Características
 
 - **Respuestas citadas**: cada afirmación apunta a una fuente numerada.
-- **Detección de sesgo**: se señalan las fuentes publicadas por un fabricante sobre su propio producto, y se priorizan las independientes cuando no coinciden.
+- **Detección de sesgo**: se señalan las fuentes con interés comercial en el tema (fabricantes hablando de su propio producto o empresas que venden servicios relacionados), y se priorizan las independientes cuando no coinciden.
 - **Detección de contradicciones**: si las fuentes no coinciden, el informe lo dice en vez de elegir una sin avisar.
 - **Lista de fuentes limpia**: solo aparecen las fuentes citadas en el informe, con su número original para que cada `[n]` siga coincidiendo.
 - **Resistente a caídas de la API**:
   - Los errores temporales del servidor (5xx) se reintentan con espera creciente.
   - Si un modelo sigue sin responder, pasa al siguiente de tu lista.
-  - Cada petición tiene un límite de 60 segundos, así que nunca se queda colgado sin avisar.
+  - Cada petición tiene un límite de 120 segundos, así que nunca se queda colgado sin avisar.
   - Los errores del cliente (clave incorrecta, modelo inexistente) fallan a la primera con un mensaje claro.
   - Si una petición tarda demasiado, pasa directamente al siguiente modelo.
+  - Si un modelo agota su cuota diaria (429), pasa al siguiente y no lo vuelve a intentar en esa ejecución; el último modelo que funcionó se prueba primero.
 - **Informes bilingües**: en inglés o español con `--lang`.
 - **Modo profundo**: con `--deep`, el asistente revisa su propio borrador, busca lo que falta (información ausente, afirmaciones con una sola fuente, discrepancias) y reescribe el informe con las fuentes nuevas.
 
@@ -61,7 +62,7 @@ Separar la búsqueda de la redacción y basar la respuesta en fuentes recuperada
 ## Instalación
 
 ```bash
-git clone https://github.com/<tu-usuario>/research-cli.git
+git clone https://github.com/alejandro-orbis/research-cli.git
 cd research-cli
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
@@ -125,6 +126,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 | `404 NOT_FOUND` (modelo) | Google ha renombrado o retirado el modelo | Actualiza `GEMINI_MODEL` (puedes listar los disponibles con `client.models.list()`) |
 | `503 UNAVAILABLE` | Modelo saturado | Se gestiona solo; si fallan todos, prueba más tarde |
 | `InvalidAPIKeyError` | Clave de Tavily incorrecta | Empieza por `tvly-`; sin comillas ni espacios |
+| `429 RESOURCE_EXHAUSTED` | Cuota diaria del plan gratuito agotada en ese modelo | Se gestiona solo pasando al siguiente modelo; añade más modelos a `GEMINI_MODEL` para tener más margen |
 
 ## Estructura del proyecto
 
@@ -163,6 +165,9 @@ Los tests se ejecutan en cada push con GitHub Actions (Python 3.10 y 3.12). No l
 - [x] Incluir o excluir dominios (por ejemplo, vídeos y foros)
 - [x] Preguntas de seguimiento sobre un informe (`--chat`)
 - [x] Historial local de informes (SQLite)
+- [ ] Soporte para otros proveedores de IA (Ollama en local, Azure OpenAI)
+- [ ] Evaluación automática de la calidad de los informes
+- [ ] Instalación como comando con `pipx` (`research "pregunta"`)
 
 ## Sobre el proyecto
 
