@@ -18,7 +18,7 @@ $ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
 💾 Saved to reports/20261122-1504-que-ventajas-tiene-n8n-frente-a-make.md
 ```
 
-📄 **[Ver un informe de ejemplo completo](examples/n8n-vs-make.md)**
+📄 **[Ver un informe de ejemplo completo](examples/n8n-vs-make.es.md)**
 
 ## Cómo funciona
 
