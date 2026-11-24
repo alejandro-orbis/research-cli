@@ -47,6 +47,7 @@ Separar la búsqueda de la redacción y basar la respuesta en fuentes recuperada
   - Los errores del cliente (clave incorrecta, modelo inexistente) fallan a la primera con un mensaje claro.
   - Si una petición tarda demasiado, pasa directamente al siguiente modelo.
 - **Informes bilingües**: en inglés o español con `--lang`.
+- **Modo profundo**: con `--deep`, el asistente revisa su propio borrador, busca lo que falta (información ausente, afirmaciones con una sola fuente, discrepancias) y reescribe el informe con las fuentes nuevas.
 
 ## Requisitos
 
@@ -81,6 +82,7 @@ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
 | `--no-save` | Muestra el informe sin guardarlo | desactivado |
 | `--exclude a.com,b.com` | Excluye estos dominios | ninguno |
 | `--include a.com,b.com` | Busca solo en estos dominios | todos |
+| `--deep` | Revisa el borrador, busca lo que falta y lo reescribe | desactivado |
 
 Los informes se guardan en `reports/` (excluida de git).
 
@@ -114,7 +116,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 
 - [x] Tests con pytest y GitHub Actions
 - [x] Búsquedas en paralelo
-- [ ] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
+- [x] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
 - [x] Incluir o excluir dominios (por ejemplo, vídeos y foros)
 - [ ] Preguntas de seguimiento sobre un informe (`--chat`)
 - [ ] Historial local de informes (SQLite)

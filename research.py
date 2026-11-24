@@ -245,8 +245,9 @@ def synthesize(client, question: str, sources: list[dict], lang: str) -> str:
         "- If sources contradict each other, say so. If something isn't covered "
         "by the sources, state that there isn't enough information; never make "
         "things up.\n"
-        "- Flag sources published by a vendor about its own product as potentially "
-        "biased, and prefer independent sources when they disagree.\n\n"
+        "- Flag sources with a commercial interest in the topic (vendors about their "
+        "own product, or companies selling related services) as potentially biased, "
+        "and prefer independent sources when they disagree.\n\n"
         f"Question: {question}\n\nSources:\n{context}"
     )
     report = ask_llm(client, prompt)

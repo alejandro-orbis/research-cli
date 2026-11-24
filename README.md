@@ -47,6 +47,7 @@ Keeping search and writing as separate steps, and grounding the answer in retrie
   - Client errors (bad key, unknown model) fail fast with a clear message.
   - Requests that time out switch straight to the next model.
 - **Bilingual reports** – English or Spanish with `--lang`.
+- **Deep mode** – with `--deep`, the assistant reviews its own draft, searches for gaps (missing info, single-source claims, disagreements) and rewrites the report with the new sources.
 
 ## Requirements
 
@@ -81,6 +82,7 @@ python research.py "What are the trade-offs of n8n vs Make for enterprises?"
 | `--no-save` | Print the report without saving it | off |
 | `--exclude a.com,b.com` | Skip these domains | none |
 | `--include a.com,b.com` | Only search these domains | all |
+| `--deep` | Review the draft, search for missing information and rewrite | off |
 
 Examples:
 
@@ -124,7 +126,7 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 
 - [x] Unit tests with pytest + GitHub Actions
 - [x] Parallel web searches
-- [ ] Deep mode (`--deep`): detect gaps and run a second round of searches
+- [x] Deep mode (`--deep`): detect gaps and run a second round of searches
 - [x] Include/exclude domains (e.g. skip video sites and forums)
 - [ ] Follow-up questions on an existing report (`--chat`)
 - [ ] Local history of past reports (SQLite)
