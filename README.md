@@ -101,13 +101,14 @@ Reports are saved to `reports/` (ignored by git).
 
 ### History
 
-Every report is also stored in a local SQLite database (`research_history.db`, ignored by git). These commands work offline and use no API quota:
+Every report is also stored in a local SQLite database (`research_history.db`, ignored by git). `--history`, `--search` and `--show` work offline and use no API quota; `--chat` uses one request per question.
 
 | Command | Description |
 |---|---|
 | `--history` | List past reports, newest first |
 | `--search TERM` | Find reports whose question or content mentions TERM |
 | `--show ID` | Print a past report |
+| `--chat [ID]` | Ask follow-up questions about a report (default: the latest). Answers only from the report, with citations |
 
 ## Configuration
 
@@ -141,7 +142,7 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 - [x] Parallel web searches
 - [x] Deep mode (`--deep`): detect gaps and run a second round of searches
 - [x] Include/exclude domains (e.g. skip video sites and forums)
-- [ ] Follow-up questions on an existing report (`--chat`)
+- [x] Follow-up questions on an existing report (`--chat`)
 - [x] Local history of past reports (SQLite)
 
 ## About

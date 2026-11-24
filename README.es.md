@@ -91,13 +91,14 @@ Los informes se guardan en `reports/` (excluida de git).
 
 ### Historial
 
-Cada informe se guarda también en una base de datos SQLite local (`research_history.db`, excluida de git). Estos comandos funcionan sin conexión y no gastan cuota:
+Cada informe se guarda también en una base de datos SQLite local (`research_history.db`, excluida de git). `--history`, `--search` y `--show` funcionan sin conexión y no gastan cuota; `--chat` usa una petición por pregunta.
 
 | Comando | Descripción |
 |---|---|
 | `--history` | Lista los informes anteriores, del más reciente al más antiguo |
 | `--search TÉRMINO` | Busca informes cuya pregunta o contenido mencione el término |
 | `--show ID` | Muestra un informe anterior |
+| `--chat [ID]` | Haz preguntas de seguimiento sobre un informe (por defecto, el último). Responde solo con el informe, con citas |
 
 ## Configuración
 
@@ -131,7 +132,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 - [x] Búsquedas en paralelo
 - [x] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
 - [x] Incluir o excluir dominios (por ejemplo, vídeos y foros)
-- [ ] Preguntas de seguimiento sobre un informe (`--chat`)
+- [x] Preguntas de seguimiento sobre un informe (`--chat`)
 - [x] Historial local de informes (SQLite)
 
 ## Sobre el proyecto
