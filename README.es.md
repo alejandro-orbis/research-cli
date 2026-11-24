@@ -5,6 +5,9 @@ Un asistente de investigación personal para la terminal. Le haces una pregunta,
 [Read in English](README.md)
 
 ![tests](https://github.com/alejandro-orbis/research-cli/actions/workflows/tests.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Last commit](https://img.shields.io/github/last-commit/alejandro-orbis/research-cli)
 
 ```
 $ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
@@ -86,6 +89,16 @@ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
 
 Los informes se guardan en `reports/` (excluida de git).
 
+### Historial
+
+Cada informe se guarda también en una base de datos SQLite local (`research_history.db`, excluida de git). Estos comandos funcionan sin conexión y no gastan cuota:
+
+| Comando | Descripción |
+|---|---|
+| `--history` | Lista los informes anteriores, del más reciente al más antiguo |
+| `--search TÉRMINO` | Busca informes cuya pregunta o contenido mencione el término |
+| `--show ID` | Muestra un informe anterior |
+
 ## Configuración
 
 | Variable | Obligatoria | Descripción |
@@ -119,7 +132,7 @@ El primero se usa por calidad; el `-lite` del final sirve de red de seguridad, p
 - [x] Modo profundo (`--deep`): detectar lagunas y lanzar una segunda ronda de búsquedas
 - [x] Incluir o excluir dominios (por ejemplo, vídeos y foros)
 - [ ] Preguntas de seguimiento sobre un informe (`--chat`)
-- [ ] Historial local de informes (SQLite)
+- [x] Historial local de informes (SQLite)
 
 ## Sobre el proyecto
 

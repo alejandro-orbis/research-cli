@@ -5,6 +5,9 @@ A personal research assistant for the terminal. Ask a question, and it searches 
 [Leer en español](README.es.md)
 
 ![tests](https://github.com/alejandro-orbis/research-cli/actions/workflows/tests.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Last commit](https://img.shields.io/github/last-commit/alejandro-orbis/research-cli)
 
 ```
 $ python research.py "What are the advantages of n8n over Make?"
@@ -96,6 +99,16 @@ python research.py "Latest stable Python version" --searches 1 --no-save
 
 Reports are saved to `reports/` (ignored by git).
 
+### History
+
+Every report is also stored in a local SQLite database (`research_history.db`, ignored by git). These commands work offline and use no API quota:
+
+| Command | Description |
+|---|---|
+| `--history` | List past reports, newest first |
+| `--search TERM` | Find reports whose question or content mentions TERM |
+| `--show ID` | Print a past report |
+
 ## Configuration
 
 | Variable | Required | Description |
@@ -129,7 +142,7 @@ The first model is used for quality; the `-lite` model at the end acts as a safe
 - [x] Deep mode (`--deep`): detect gaps and run a second round of searches
 - [x] Include/exclude domains (e.g. skip video sites and forums)
 - [ ] Follow-up questions on an existing report (`--chat`)
-- [ ] Local history of past reports (SQLite)
+- [x] Local history of past reports (SQLite)
 
 ## About
 
