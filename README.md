@@ -1,4 +1,4 @@
-# research-cli
+# Research CLI
 
 A personal research assistant for the terminal. Ask a question, and it searches the web, reads the sources and writes a Markdown report where every claim is cited.
 
