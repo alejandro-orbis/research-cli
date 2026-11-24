@@ -2,26 +2,13 @@ import time
 
 import pytest
 
-import research
-from research import (
-    cited_numbers,
-    ask_llm,
-    build_chat_prompt,
-    chat,
-    find_gaps,
-    get_report,
-    latest_report_id,
-    list_history,
-    open_db,
-    save_to_history,
-    is_quota_error,
-    is_timeout,
-    make_slug,
-    merge_sources,
-    parse_domains,
-    parse_json_list,
-    search_sources,
-)
+from research_cli import llm
+from research_cli.chat import build_chat_prompt, chat
+from research_cli.history import get_report, latest_report_id, list_history, open_db, save_to_history
+from research_cli.llm import ask_llm, is_quota_error, is_timeout, parse_json_list
+from research_cli.planner import find_gaps
+from research_cli.search import merge_sources, parse_domains, search_sources
+from research_cli.writer import cited_numbers, make_slug
 
 
 # --- cited_numbers ---------------------------------------------------------
@@ -238,12 +225,12 @@ class ModelAwareModels:
 @pytest.fixture(autouse=True)
 def reset_llm_memory(monkeypatch):
     """Start every test with a clean ask_llm() memory, so tests don't affect each other."""
-    monkeypatch.setattr(research, "_exhausted", set())
-    monkeypatch.setattr(research, "_preferred", None)
+    monkeypatch.setattr(llm, "_exhausted", set())
+    monkeypatch.setattr(llm, "_preferred", None)
 
 
 def test_ask_llm_falls_back_when_a_model_is_out_of_quota(monkeypatch):
-    monkeypatch.setattr(research, "MODELS", ["model-a", "model-b"])
+    monkeypatch.setattr(llm, "MODELS", ["model-a", "model-b"])
     client = FakeGemini("")
     client.models = ModelAwareModels({"model-a": QuotaError(), "model-b": "hello"})
     assert ask_llm(client, "prompt") == "hello"
@@ -251,7 +238,7 @@ def test_ask_llm_falls_back_when_a_model_is_out_of_quota(monkeypatch):
 
 
 def test_exhausted_model_is_not_retried_in_later_calls(monkeypatch):
-    monkeypatch.setattr(research, "MODELS", ["model-a", "model-b"])
+    monkeypatch.setattr(llm, "MODELS", ["model-a", "model-b"])
     client = FakeGemini("")
     client.models = ModelAwareModels({"model-a": QuotaError(), "model-b": "ok"})
     ask_llm(client, "first call")
@@ -261,9 +248,9 @@ def test_exhausted_model_is_not_retried_in_later_calls(monkeypatch):
 
 
 def test_last_successful_model_is_tried_first(monkeypatch):
-    monkeypatch.setattr(research, "MODELS", ["model-a", "model-b", "model-c"])
-    monkeypatch.setattr(research, "_preferred", "model-c")
-    assert research.model_order() == ["model-c", "model-a", "model-b"]
+    monkeypatch.setattr(llm, "MODELS", ["model-a", "model-b", "model-c"])
+    monkeypatch.setattr(llm, "_preferred", "model-c")
+    assert llm.model_order() == ["model-c", "model-a", "model-b"]
 
 
 # --- history (SQLite, in memory) ---------------------------------------------
@@ -336,7 +323,7 @@ def test_chat_prompt_keeps_only_recent_turns():
 
 
 def test_chat_loop_answers_until_exit(monkeypatch):
-    monkeypatch.setattr(research, "MODELS", ["model-a"])
+    monkeypatch.setattr(llm, "MODELS", ["model-a"])
     answers = iter(["What does it cost?", "", "exit"])  # empty input is ignored
     client = FakeGemini("It's free when self-hosted [2].")
     row = {"id": 1, "question": "n8n vs Make", "report": "# Report"}
