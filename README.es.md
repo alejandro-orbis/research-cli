@@ -9,17 +9,7 @@ Un asistente de investigación personal para la terminal. Le haces una pregunta,
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Last commit](https://img.shields.io/github/last-commit/alejandro-orbis/research-cli)
 
-```
-$ python research.py "¿Qué ventajas tiene n8n frente a Make?" --lang es
-🧠 Planning searches...
-🌐 Searching sources...
-  🔎 n8n vs Make ventajas y diferencias
-  🔎 n8n self hosting frente a Make
-  🔎 n8n vs Make comparativa precios y limitaciones
-   8 unique sources
-✍️  Writing report...
-💾 Saved to reports/20261122-1504-que-ventajas-tiene-n8n-frente-a-make.md
-```
+![Research CLI demo](docs/demo.gif)
 
 📄 **[Ver un informe de ejemplo completo](examples/n8n-vs-make.es.md)**
 
